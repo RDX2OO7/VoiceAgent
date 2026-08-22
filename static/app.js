@@ -10,11 +10,33 @@ let source;
 let nextPlaybackTime = 0;
 const playbackNodes = new Set();
 
+let currentSpeaker = null;
+let currentSpeakerElement = null;
+
+function resetSpeakerTrack() {
+  currentSpeaker = null;
+  currentSpeakerElement = null;
+}
+
 function addEvent(text, className = "") {
+  resetSpeakerTrack();
   const row = document.createElement("div");
   row.className = `event ${className}`;
   row.textContent = text;
   events.prepend(row);
+}
+
+function addTranscript(speaker, text) {
+  if (currentSpeaker === speaker && currentSpeakerElement) {
+    currentSpeakerElement.textContent += " " + text;
+  } else {
+    currentSpeaker = speaker;
+    const row = document.createElement("div");
+    row.className = `event ${speaker}`;
+    row.textContent = `${speaker}: ${text}`;
+    events.prepend(row);
+    currentSpeakerElement = row;
+  }
 }
 
 function base64FromBytes(bytes) {
@@ -71,7 +93,7 @@ async function connect() {
   stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } });
   socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
   socket.addEventListener("open", () => {
-    status.textContent = "Listening — try: Find a room after three";
+    status.textContent = "Listening — try: Find a hotel in Dubai";
     button.textContent = "Disconnect";
     button.classList.add("connected");
     source = audioContext.createMediaStreamSource(stream);
@@ -87,7 +109,7 @@ async function connect() {
   socket.addEventListener("message", event => {
     const message = JSON.parse(event.data);
     if (message.type === "audio") playPcm(message.data, message.mime_type);
-    if (message.type === "transcript") addEvent(`${message.speaker}: ${message.text}`, message.speaker);
+    if (message.type === "transcript") addTranscript(message.speaker, message.text);
     if (message.type === "tool") {
       const label = message.phase === "call" 
         ? `🔍 Searching live hotel databases...` 
@@ -99,6 +121,9 @@ async function connect() {
       playbackNodes.clear();
       nextPlaybackTime = audioContext.currentTime;
       addEvent("agent interrupted");
+    }
+    if (message.type === "turn_complete") {
+      resetSpeakerTrack();
     }
     if (message.type === "error") addEvent(message.message);
   });
