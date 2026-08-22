@@ -1,57 +1,90 @@
 from __future__ import annotations
 
-import asyncio
+import json
 import logging
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(REPO_ROOT / ".env")
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-ROOMS = [
-    {"name": "Orchid", "available_from": 15, "capacity": 4},
-    {"name": "Atlas", "available_from": 16, "capacity": 8},
-    {"name": "Cedar", "available_from": 17, "capacity": 12},
-]
 
-
-def find_rooms(after_hour: int, minimum_capacity: int = 1) -> dict:
-    """Find rooms available at or after an hour using a 24-hour clock.
+def search_hotels(location: str, max_price: str = "", preferences: str = "") -> dict:
+    """Search for actual real hotels in any designated location using live web search.
 
     Args:
-        after_hour: Earliest acceptable hour, from 0 to 23.
-        minimum_capacity: Minimum number of people the room must hold.
+        location: City, neighborhood, landmark, or region where the user wants to find hotels (e.g. 'Mumbai', 'Paris', 'New York', 'Goa').
+        max_price: Optional budget or maximum price range (e.g. '$150 per night', 'under 5000 INR').
+        preferences: Optional preferences (e.g. 'near beach', '5-star luxury', 'free breakfast', 'pool').
     """
-    if not 0 <= after_hour <= 23:
-        return {"status": "error", "message": "after_hour must be between 0 and 23"}
-    if minimum_capacity < 1:
-        return {"status": "error", "message": "minimum_capacity must be positive"}
+    if not location or not location.strip():
+        return {"status": "error", "message": "Please specify a location to search for hotels."}
 
-    matches = [
-        room
-        for room in ROOMS
-        if room["available_from"] >= after_hour and room["capacity"] >= minimum_capacity
-    ]
-    return {"status": "success", "rooms": matches}
-
-
-async def slow_find_rooms(after_hour: int, minimum_capacity: int = 1) -> dict:
-    """Find rooms slowly so voice-agent latency and failure recovery can be tested.
-
-    Args:
-        after_hour: Earliest acceptable hour, from 0 to 23.
-        minimum_capacity: Minimum number of people the room must hold.
-
-    The simulated service failure is returned as a structured tool result. This lets
-    the agent explain the problem without receiving or repeating implementation
-    details from a Python exception.
-    """
-    delay_seconds = float(os.getenv("ROOM_TOOL_DELAY_SECONDS", "5"))
-    await asyncio.sleep(max(0, delay_seconds))
-    if os.getenv("ROOM_TOOL_FAIL") == "1" or after_hour == 13:
-        logger.error("Room availability could not be checked right now.")
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        logger.error("Neither GEMINI_API_KEY nor GOOGLE_API_KEY is configured in .env")
         return {
             "status": "error",
-            "message": "Room availability could not be checked right now.",
-            "retryable": True,
+            "message": "API key is missing in environment configuration.",
         }
-    return find_rooms(after_hour=after_hour, minimum_capacity=minimum_capacity)
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+
+        prompt = (
+            f"Find 3 to 4 actual, real, open hotels in or near '{location.strip()}'.\n"
+            f"User preferences: '{preferences}'. Price limit/budget: '{max_price}'.\n"
+            "Provide accurate ratings, estimated price ranges, exact addresses/neighborhoods, and highlights.\n"
+            "Return a clean JSON object with key 'hotels' containing an array of objects with keys: "
+            "'name', 'rating', 'price_range', 'location', 'highlights'."
+        )
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.2,
+            ),
+        )
+
+        text_output = response.text or ""
+
+        if "```json" in text_output:
+            json_str = text_output.split("```json")[1].split("```")[0].strip()
+            data = json.loads(json_str)
+            if isinstance(data, dict) and "hotels" in data:
+                return {"status": "success", "location": location, "hotels": data["hotels"]}
+            elif isinstance(data, list):
+                return {"status": "success", "location": location, "hotels": data}
+        elif text_output.strip().startswith("{") and "hotels" in text_output:
+            try:
+                data = json.loads(text_output.strip())
+                return {"status": "success", "location": location, "hotels": data.get("hotels", [])}
+            except Exception:
+                pass
+
+        return {
+            "status": "success",
+            "location": location,
+            "summary": text_output.strip(),
+        }
+
+    except Exception as exc:
+        logger.exception("Error during hotel search for location %s", location)
+        return {
+            "status": "error",
+            "message": f"Could not retrieve hotels for {location}: {str(exc)}",
+        }
+
+
+def find_rooms(location: str = "Mumbai", minimum_capacity: int = 1) -> dict:
+    """Legacy compatibility wrapper that searches for hotels/rooms in a location."""
+    return search_hotels(location=location)

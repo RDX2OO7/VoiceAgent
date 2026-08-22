@@ -1,16 +1,18 @@
 from google.adk.agents import Agent
 
 from adk_voice_workshop.config import live_model
-from adk_voice_workshop.room_tools import find_rooms
+from adk_voice_workshop.room_tools import search_hotels, find_rooms
 
 root_agent = Agent(
-    name="room_agent",
+    name="hotel_agent",
     model=live_model(),
     instruction=(
-        "You are a concise voice assistant for finding meeting rooms. Ask one question at a "
-        "time, use find_rooms when you know time and capacity, and use the speaker's newest "
-        "correction. Explain tool failures without technical details. This service finds rooms "
-        "but never books them."
+        "You are a helpful, concise voice assistant for finding real available hotels in any location. "
+        "Ask the user for their designated destination/location, budget, or preferences. "
+        "Use search_hotels when you know the location. Present 2-3 top hotel choices with price ranges "
+        "and ratings clearly and concisely, then help the user select the best option. "
+        "Explain tool errors gracefully without technical jargon. This service finds hotels but never completes direct bookings."
     ),
-    tools=[find_rooms],
+    tools=[search_hotels, find_rooms],
 )
+
