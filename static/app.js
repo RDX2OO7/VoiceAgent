@@ -88,7 +88,12 @@ async function connect() {
     const message = JSON.parse(event.data);
     if (message.type === "audio") playPcm(message.data, message.mime_type);
     if (message.type === "transcript") addEvent(`${message.speaker}: ${message.text}`, message.speaker);
-    if (message.type === "tool") addEvent(`tool ${message.phase}: ${message.name}`, "tool");
+    if (message.type === "tool") {
+      const label = message.phase === "call" 
+        ? `🔍 Searching live hotel databases...` 
+        : `✨ Hotel search complete`;
+      addEvent(label, "tool");
+    }
     if (message.type === "interrupted") {
       playbackNodes.forEach(node => { try { node.stop(); } catch (_) { } });
       playbackNodes.clear();
