@@ -1,165 +1,93 @@
-# Building Voice Agents with Google ADK
+# ADK Voice Agent
 
-A guided Python workshop that goes from a tiny typed-prompt agent to a real-time voice agent with tools, interruption, transcription, and failure handling.
+A real-time, bi-directional voice assistant built with **Google ADK** (Agent Development Kit), the **Gemini Live API** (`gemini-3.1-flash-live-preview`), **FastAPI**, and **WebSockets**.
 
-## Workshop slides
+---
 
-- [PowerPoint deck](slides/google-adk-voice-agents-workshop.pptx) — downloadable/offline copy kept with the code
-- [Live Google Slides](https://docs.google.com/presentation/d/1n0RPi-yYbqH_e_r23KlJAldgGFxdpRez7lVCUqkLLc0/edit) — presentation version for the workshop
+## Features
 
-## What participants build
+- **Real-Time Audio Streaming**: Low-latency PCM 16kHz bi-directional audio streaming via WebSockets.
+- **Function Tools**: Integrated tools (e.g., hotel searching & room finding) with voice feedback.
+- **Interruption & Transcription**: Supports user interruption and real-time speech-to-text transcriptions for both user and agent.
+- **Interactive Web Interface**: Built-in browser web app (`static/index.html`) for testing microphone input and audio playback.
 
-1. A basic ADK agent
-2. A room-finding function tool
-3. A voice agent in the ADK development UI
-4. A slow/failing tool experiment
-5. An optional FastAPI + WebSocket streaming app
-6. A production-hardening pass on the custom streaming web app
+---
 
-Every stage has a runnable checkpoint. If you get stuck, jump to the next folder and continue.
+## Prerequisites
 
-## Before the workshop
+- **Python**: 3.11 – 3.13
+- **Package Manager**: [`uv`](https://docs.astral.sh/uv/) installed
+- **API Key**: [Google AI Studio API Key](https://aistudio.google.com/app/apikey)
 
-You need:
+---
 
-- Python 3.11–3.13
-- [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- Chrome or another Chromium browser
-- Headphones and a microphone
-- A Google AI Studio API key
+## Quick Start
 
-## Fast setup
+### 1. Configure Environment
+
+Copy `.env.example` to `.env` and add your Gemini API key:
 
 ```bash
-git clone <WORKSHOP_REPO_URL>
-cd adk-voice-workshop
 cp .env.example .env
-# Put the workshop key in GEMINI_API_KEY (or GOOGLE_API_KEY) in .env.
-# Never commit or paste it in chat.
+```
+
+Set in `.env`:
+```env
+GEMINI_API_KEY=your_api_key_here
+TEXT_MODEL=gemini-3.6-flash
+LIVE_MODEL=gemini-3.1-flash-live-preview
+```
+
+### 2. Install Dependencies
+
+```bash
 uv sync
+```
+
+### 3. Run Preflight Check
+
+```bash
 uv run python scripts/preflight.py
 ```
 
-Expected result:
+---
 
-```text
-✓ Python 3.11–3.13
-✓ Dependencies
-✓ API key configuration
-✓ AI Studio mode
-✓ Text model
-✓ Live model
-✓ Workshop checkpoints
-READY
-```
+## Running the Agent
 
-## Run a checkpoint
-
-Typed-prompt checkpoint:
+### Option A: Custom FastAPI + WebSocket Server (Recommended)
 
 ```bash
-cd checkpoints/01_basic
-uv run adk web
-```
-
-Checkpoints 00–02 use the stable text model `gemini-3.6-flash`. Type prompts
-with the send button; do not start the microphone/audio mode, because that
-opens `/run_live` and text-only models do not support the Live API. Checkpoint
-03 switches to `gemini-3.1-flash-live-preview` for microphone input and native
-audio.
-
-Tool agent:
-
-```bash
-cd checkpoints/02_tool
-uv run adk web
-```
-
-Voice agent:
-
-```bash
-cd checkpoints/03_voice
-export SSL_CERT_FILE="$(uv run python -m certifi)"
-uv run adk web
-```
-
-Open the printed local URL, select `room_agent`, allow microphone access, and say:
-
-> Find a room after three.
-
-The native-audio model is voice-first. Use the microphone rather than the text box in the voice checkpoints.
-
-Slow/failure demo:
-
-```bash
-cd checkpoints/04_slow_failure
-uv run adk web
-```
-
-Ask for a room after three to hear the deliberate five-second delay. Ask for a
-room after one p.m. (13:00), or set `ROOM_TOOL_FAIL=1`, to trigger the friendly
-failure path. The tool returns a structured error; the agent should not expose a
-Python exception or retry without asking.
-
-## Workshop map
-
-| Folder | Moment | What changes |
-|---|---|---|
-| `00_start` | Start here | Minimal agent; edit the instruction |
-| `01_basic` | Basic agent | Clear room-assistant behavior |
-| `02_tool` | Add a tool | Agent can call `find_rooms` |
-| `03_voice` | Enable voice | Switch to the Live API model and use the microphone |
-| `04_slow_failure` | Break it | Slow tool, timeout, and failure experiment |
-| `05_custom_streaming` | Look underneath | `run_live`, `LiveRequestQueue`, WebSocket, audio, events, transcription |
-| `06_production` | Harden it | Add WebSocket controls, session resilience, budgets, and safe logging |
-
-## Run the custom streaming app
-
-This is the optional advanced checkpoint:
-
-```bash
-cd checkpoints/05_custom_streaming
 uv run uvicorn server:app --reload --port 8001
 ```
 
-Open [http://localhost:8001](http://localhost:8001), click **Connect microphone**, and use headphones.
+Open **[http://localhost:8001](http://localhost:8001)** in a Chromium browser, click **Connect Microphone**, and start talking.
 
-## Run the production-hardening checkpoint
+### Option B: ADK Development Web UI
 
 ```bash
-cd checkpoints/06_production
-uv run uvicorn server:app --reload --port 8002
+uv run adk web
 ```
 
-Open [http://localhost:8002](http://localhost:8002). This checkpoint hardens
-the custom streaming server from checkpoint 05. See
-[`checkpoints/06_production/README.md`](checkpoints/06_production/README.md) for
-the implemented controls and the infrastructure still required before a real deployment.
+Open the printed URL, select `hotel_agent`, and click the microphone button.
 
-## API-key safety for a workshop
+---
 
-- Never commit the key. `.env` is ignored by Git. Both `GEMINI_API_KEY` and
-  `GOOGLE_API_KEY` are accepted by the workshop.
-- Prefer a dedicated workshop key and project, with the smallest practical quota.
-- Give the key only to registered participants and rotate/delete it immediately after the session.
-- Expect preview Live API models to have tighter quotas than text models.
-- If attendees can create their own AI Studio keys, that is safer and avoids one shared quota bottleneck.
+## Project Structure
+
+```text
+.
+├── agent.py          # Root ADK agent & instructions
+├── server.py         # FastAPI WebSocket server & LiveRequestQueue handler
+├── src/              # Python source code & custom tools (search_hotels, find_rooms)
+├── static/           # Frontend Web UI (HTML, CSS, Web Audio PCM stream logic)
+├── scripts/          # Preflight & helper scripts
+└── checkpoints/      # Workshop step-by-step progression stages
+```
+
+---
 
 ## Troubleshooting
 
-- **No microphone:** allow browser microphone permission, reload, and use `localhost`.
-- **Certificate error on macOS:** set `SSL_CERT_FILE` using the command above.
-- **Quota/rate limit:** pair participants or switch to a participant-owned AI Studio key.
-- **Model not found:** verify `LIVE_MODEL` in `.env` against the current Live API model list. Preview model names can change.
-- **`not supported for bidiGenerateContent` in checkpoints 00–02:** microphone/audio mode was started with the text model. Start a new session and submit prompts with the text send button, or move to checkpoint 03 for voice.
-- **Someone is behind:** move directly to the next completed checkpoint.
-
-## Sources
-
-- [ADK streaming quickstart](https://adk.dev/get-started/streaming/)
-- [ADK Python streaming guide](https://adk.dev/live/get-started/streaming-python/)
-- [Gemini Live API quickstart](https://ai.google.dev/gemini-api/docs/live-api/get-started-sdk)
-- [Gemini 3.1 Flash Live model](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-live-preview)
-- [Latest Gemini text models](https://ai.google.dev/gemini-api/docs/latest-model)
-
-`adk web` is a development and workshop UI, not a production deployment.
+- **Microphone issues**: Open via `http://localhost:8001` (browsers require HTTPS or `localhost` for audio permissions).
+- **SSL Certificate Errors (macOS)**: Run `export SSL_CERT_FILE="$(uv run python -m certifi)"`.
+- **API Key Error**: Verify `GEMINI_API_KEY` is active and `GOOGLE_GENAI_USE_VERTEXAI=FALSE`.
