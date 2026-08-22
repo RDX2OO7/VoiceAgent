@@ -15,3 +15,7 @@ def text_model() -> str:
 
 def live_model() -> str:
     return os.getenv("LIVE_MODEL", "gemini-3.6-flash")
+
+
+def voice_name() -> str:
+    return os.getenv("VOICE_NAME", "Aoede")
